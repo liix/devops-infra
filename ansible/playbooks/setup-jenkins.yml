@@ -1,0 +1,244 @@
+---
+- name: Setup jenkins
+  hosts: jenkins_servers
+  become: true
+  tasks:
+    - name: Install Java
+      apt:
+        name:
+          - fontconfig
+          - openjdk-21-jre
+        state: present
+        update_cache: true
+
+    - name: Ensure apt keyrings directory
+      file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: "0755"
+
+    - name: Download Jenkins repo key
+      get_url:
+        url: https://pkg.jenkins.io/debian-stable/jenkins.io-2026.key
+        dest: /etc/apt/keyrings/jenkins-keyring.asc
+        mode: "0644"
+
+    - name: Add Jenkins apt repository
+      deb822_repository:
+        name: jenkins
+        types: deb
+        uris: https://pkg.jenkins.io/debian-stable
+        suites:
+          - binary/
+        signed_by: /etc/apt/keyrings/jenkins-keyring.asc
+        state: present
+
+    - name: Install Jenkins
+      apt:
+        name: jenkins
+        state: present
+        update_cache: true
+
+    - name: Add Registry key for docker login
+      copy:
+        dest: /var/lib/jenkins/secrets/yc-cr.json
+        owner: jenkins
+        group: jenkins
+        mode: "0600"
+        content: "{{ yc_cr_key_json }}"
+      no_log: true
+
+    - name: Registry id for pipeline
+      copy:
+        dest: /var/lib/jenkins/secrets/yc-registry-id
+        owner: jenkins
+        group: jenkins
+        mode: "0644"
+        content: "{{ yc_registry_id }}"
+
+    - name: Stop Jenkins before first-run config
+      service:
+        name: jenkins
+        state: stopped
+
+    - name: Ensure systemd override directory
+      file:
+        path: /etc/systemd/system/jenkins.service.d
+        state: directory
+        mode: "0755"
+
+    - name: Skip setup wizard
+      copy:
+        dest: /etc/systemd/system/jenkins.service.d/override.conf
+        mode: "0644"
+        content: |
+          [Service]
+          Environment="JAVA_OPTS=-Djava.awt.headless=true -Djenkins.install.runSetupWizard=false"
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: true
+
+    - name: Ensure Jenkins init.groovy.d
+      file:
+        path: /var/lib/jenkins/init.groovy.d
+        state: directory
+        owner: jenkins
+        group: jenkins
+        mode: "0755"
+
+    - name: Create admin user on startup
+      copy:
+        dest: /var/lib/jenkins/init.groovy.d/basic-security.groovy
+        owner: jenkins
+        group: jenkins
+        mode: "0600"
+        content: |
+          import jenkins.model.*
+          import hudson.security.*
+
+          def instance = Jenkins.getInstance()
+          if (instance.getSecurityRealm() instanceof HudsonPrivateSecurityRealm) {
+            return
+          }
+
+          def hudsonRealm = new HudsonPrivateSecurityRealm(false)
+          hudsonRealm.createAccount("{{ jenkins_admin_username }}", "{{ jenkins_admin_password }}")
+          instance.setSecurityRealm(hudsonRealm)
+
+          def strategy = new FullControlOnceLoggedInAuthorizationStrategy()
+          strategy.setAllowAnonymousRead(false)
+          instance.setAuthorizationStrategy(strategy)
+          instance.save()
+      no_log: true
+
+    - name: Download Jenkins plugin manager
+      get_url:
+        url: https://github.com/jenkinsci/plugin-installation-manager-tool/releases/download/2.15.0/jenkins-plugin-manager-2.15.0.jar
+        dest: /tmp/jenkins-plugin-manager.jar
+        mode: "0644"
+
+    - name: Install Jenkins plugins for Pipeline and Git
+      command: >
+        java -jar /tmp/jenkins-plugin-manager.jar
+        --war /usr/share/java/jenkins.war
+        --plugin-download-directory /var/lib/jenkins/plugins
+        --plugins git workflow-aggregator mstest coverage
+      args:
+        creates: /var/lib/jenkins/plugins/git.jpi
+
+    - name: Fix plugins ownership
+      file:
+        path: /var/lib/jenkins/plugins
+        owner: jenkins
+        group: jenkins
+        recurse: true
+
+    - name: Create Jenkins job
+      copy:
+        dest: /var/lib/jenkins/init.groovy.d/pipeline-job.groovy
+        owner: jenkins
+        group: jenkins
+        mode: "0600"
+        content: |
+          import jenkins.model.*
+          import hudson.plugins.git.*
+          import org.jenkinsci.plugins.workflow.job.WorkflowJob
+          import org.jenkinsci.plugins.workflow.cps.CpsScmFlowDefinition
+          def jenkins = Jenkins.getInstance()
+          def jobName = "diploma-app"
+          if (jenkins.getItem(jobName) != null) {
+            return
+          }
+          def repoUrl = "{{ git_repo_url }}"
+          def scm = new GitSCM(
+            [new UserRemoteConfig(repoUrl, null, null, null)],
+            [new BranchSpec("*/dev")],
+            false,
+            Collections.emptyList(),
+            null,
+            null,
+            Collections.emptyList()
+          )
+          def job = jenkins.createProject(WorkflowJob, jobName)
+          def definition = new CpsScmFlowDefinition(scm, "Jenkinsfile")
+          definition.setLightweight(true)
+          job.setDefinition(definition)
+          job.save()
+
+    - name: Start Jenkins
+      service:
+        name: jenkins
+        state: started
+        enabled: true
+
+    - name: Wait for Jenkins HTTP
+      wait_for:
+        port: 8080
+        delay: 10
+        timeout: 180
+
+    - name: Download Docker repo key
+      get_url:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        dest: /etc/apt/keyrings/docker.asc
+        mode: "0644"
+
+    - name: Add Docker apt repository
+      deb822_repository:
+        name: docker
+        types: deb
+        uris: https://download.docker.com/linux/ubuntu
+        suites:
+          - "{{ ansible_facts['distribution_release'] }}"
+        components:
+          - stable
+        architectures: amd64
+        signed_by: /etc/apt/keyrings/docker.asc
+        state: present
+
+    - name: Install Docker
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
+        update_cache: true
+
+    - name: Start Docker
+      service:
+        name: docker
+        state: started
+        enabled: true
+
+    - name: Add the user jenkins to the docker group
+      user:
+        name: jenkins
+        groups: docker
+        append: true
+
+    - name: Install Dotnet SDK
+      apt:
+        name:
+          - dotnet-sdk-10.0
+        state: present
+
+    - name: Install curl
+      apt:
+        name:
+          - curl
+        state: present
+
+    - name: Restart Jenkins
+      service:
+        name: jenkins
+        state: restarted
+
+    - name: Wait for Jenkins HTTP after restart
+      wait_for:
+        port: 8080
+        delay: 10
+        timeout: 180
