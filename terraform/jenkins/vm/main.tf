@@ -8,19 +8,16 @@ terraform {
 }
 
 resource "yandex_vpc_security_group" "this" {
-  name       = "security-group"
+  name       = var.security_group_name
   network_id = var.network_id
 
-  ingress {
-    protocol       = "TCP"
-    port           = 22
-    v4_cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    protocol       = "TCP"
-    port           = 8080
-    v4_cidr_blocks = ["0.0.0.0/0"]
+  dynamic "ingress" {
+    for_each = var.ingress_rules
+    content {
+      protocol       = "TCP"
+      port           = ingress.value.port
+      v4_cidr_blocks = ingress.value.v4_cidr_blocks
+    }
   }
 
   egress {
@@ -30,14 +27,14 @@ resource "yandex_vpc_security_group" "this" {
 }
 
 resource "yandex_compute_instance" "this" {
-  name        = "vm"
-  hostname    = "vm"
+  name        = var.instance_name
+  hostname    = var.instance_name
   zone        = var.subnet_zone
   platform_id = "standard-v3"
 
   boot_disk {
     initialize_params {
-      name       = "disk-ubuntu-24-04-lts"
+      name       = var.disk_name
       type       = "network-hdd"
       size       = 10
       block_size = 4096

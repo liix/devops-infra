@@ -1,0 +1,44 @@
+---
+- name: Setup single-node k3s
+  hosts: k3s_servers
+  become: true
+  tasks:
+    - name: Install curl
+      apt:
+        name: curl
+        state: present
+        update_cache: true
+
+    - name: Download k3s installer
+      get_url:
+        url: https://get.k3s.io
+        dest: /tmp/install-k3s.sh
+        mode: "0755"
+
+    - name: Install k3s server
+      command: /tmp/install-k3s.sh
+      environment:
+        INSTALL_K3S_EXEC: "server --tls-san {{ k3s_internal_ip }} --write-kubeconfig-mode 0644"
+      args:
+        creates: /usr/local/bin/k3s
+
+    - name: Wait for k3s API
+      wait_for:
+        host: 127.0.0.1
+        port: 6443
+        delay: 5
+        timeout: 180
+
+    - name: Fetch k3s kubeconfig
+      fetch:
+        src: /etc/rancher/k3s/k3s.yaml
+        dest: "{{ kubeconfig_local_path }}"
+        flat: true
+
+    - name: Point kubeconfig to the internal k3s address
+      replace:
+        path: "{{ kubeconfig_local_path }}"
+        regexp: "https://127\\.0\\.0\\.1:6443"
+        replace: "https://{{ k3s_internal_ip }}:6443"
+      delegate_to: localhost
+      become: false

@@ -13,3 +13,22 @@ variable "subnet_zone" {
 variable "ssh_public_key" {
   type = string
 }
+
+variable "instance_name" {
+  type = string
+}
+
+variable "security_group_name" {
+  type = string
+}
+
+variable "disk_name" {
+  type = string
+}
+
+variable "ingress_rules" {
+  type = list(object({
+    port           = number
+    v4_cidr_blocks = list(string)
+  }))
+}

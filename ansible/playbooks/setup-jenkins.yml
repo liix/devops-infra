@@ -6,6 +6,7 @@
     - name: Install Java
       apt:
         name:
+          - acl
           - fontconfig
           - openjdk-21-jre
         state: present
@@ -324,12 +325,6 @@
         group: jenkins
         mode: "0600"
 
-    - name: Kubeconfig exec uses system yc
-      replace:
-        path: /var/lib/jenkins/.kube/config
-        regexp: "command:.*yc.*"
-        replace: "command: /usr/local/bin/yc"
-
     - name: Download kubectl
       get_url:
         url: https://dl.k8s.io/release/v1.35.0/bin/linux/amd64/kubectl
@@ -337,6 +332,24 @@
         mode: "0755"
         owner: root
         group: root
+
+    - name: Create Yandex Registry pull secret in k3s
+      become_user: jenkins
+      shell: |
+        set -o pipefail
+        kubectl create secret docker-registry ycr-secret \
+          --docker-server=cr.yandex \
+          --docker-username=json_key \
+          --docker-password="$(cat /var/lib/jenkins/secrets/yc-cr.json)" \
+          --dry-run=client \
+          --output=yaml |
+        kubectl apply -f -
+      args:
+        executable: /bin/bash
+      environment:
+        HOME: /var/lib/jenkins
+        KUBECONFIG: /var/lib/jenkins/.kube/config
+      no_log: true
 
     - name: Restart Jenkins
       service:

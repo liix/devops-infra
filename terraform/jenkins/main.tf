@@ -32,11 +32,49 @@ module "network" {
 }
 
 module "vm" {
-  source         = "./vm"
-  network_id     = module.network.network_id
-  subnet_id      = module.network.subnet_ids[0]
-  subnet_zone    = module.network.subnet_zones[0]
-  ssh_public_key = var.ssh_public_key
+  source              = "./vm"
+  instance_name       = "vm"
+  security_group_name = "security-group"
+  disk_name           = "disk-ubuntu-24-04-lts"
+  network_id          = module.network.network_id
+  subnet_id           = module.network.subnet_ids[0]
+  subnet_zone         = module.network.subnet_zones[0]
+  ssh_public_key      = var.ssh_public_key
+  ingress_rules = [
+    {
+      port           = 22
+      v4_cidr_blocks = ["0.0.0.0/0"]
+    },
+    {
+      port           = 8080
+      v4_cidr_blocks = ["0.0.0.0/0"]
+    }
+  ]
+}
+
+module "k3s_vm" {
+  source              = "./vm"
+  instance_name       = "k3s"
+  security_group_name = "k3s-security-group"
+  disk_name           = "k3s-disk-ubuntu-24-04-lts"
+  network_id          = module.network.network_id
+  subnet_id           = module.network.subnet_ids[0]
+  subnet_zone         = module.network.subnet_zones[0]
+  ssh_public_key      = var.ssh_public_key
+  ingress_rules = [
+    {
+      port           = 22
+      v4_cidr_blocks = ["0.0.0.0/0"]
+    },
+    {
+      port           = 80
+      v4_cidr_blocks = ["0.0.0.0/0"]
+    },
+    {
+      port           = 6443
+      v4_cidr_blocks = ["10.10.1.0/24"]
+    }
+  ]
 }
 
 module "registry" {
@@ -45,6 +83,18 @@ module "registry" {
 
 output "vm_ip" {
   value = module.vm.vm_ip
+}
+
+output "jenkins_vm_ip" {
+  value = module.vm.vm_ip
+}
+
+output "k3s_vm_ip" {
+  value = module.k3s_vm.vm_ip
+}
+
+output "k3s_vm_internal_ip" {
+  value = module.k3s_vm.vm_internal_ip
 }
 
 output "registry_id" {
