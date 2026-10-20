@@ -9,7 +9,7 @@ terraform {
 
 provider "yandex" {
   folder_id                = var.folder_id
-  zone                     = "ru-central1-a"
+  zone                     = "ru-central1-d"
   cloud_id                 = var.cloud_id
   service_account_key_file = "../key.json"
 }
@@ -18,8 +18,12 @@ data "yandex_vpc_network" "this" {
   name = "network"
 }
 
-data "yandex_vpc_subnet" "this" {
+data "yandex_vpc_subnet" "master" {
   name = "subnet1"
+}
+
+data "yandex_vpc_subnet" "nodes" {
+  name = "subnet2"
 }
 
 resource "yandex_iam_service_account" "this" {
@@ -40,10 +44,15 @@ resource "yandex_resourcemanager_folder_iam_member" "this" {
 }
 
 module "kubernetes" {
-  source       = "./kubernetes"
-  network_id   = data.yandex_vpc_network.this.id
-  subnet_id    = data.yandex_vpc_subnet.this.id
-  master_sa_id = yandex_iam_service_account.this.id
-  node_sa_id   = yandex_iam_service_account.this.id
-  depends_on   = [yandex_resourcemanager_folder_iam_member.this]
+  source         = "./kubernetes"
+  network_id     = data.yandex_vpc_network.this.id
+  subnet_id      = data.yandex_vpc_subnet.master.id
+  node_subnet_id = data.yandex_vpc_subnet.nodes.id
+  master_sa_id   = yandex_iam_service_account.this.id
+  node_sa_id     = yandex_iam_service_account.this.id
+  depends_on     = [yandex_resourcemanager_folder_iam_member.this]
+}
+
+output "cluster_id" {
+  value = module.kubernetes.cluster_id
 }

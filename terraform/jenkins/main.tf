@@ -9,7 +9,7 @@ terraform {
 
 provider "yandex" {
   folder_id                = var.folder_id
-  zone                     = "ru-central1-a"
+  zone                     = "ru-central1-d"
   cloud_id                 = var.cloud_id
   service_account_key_file = "../key.json"
 }
@@ -20,8 +20,13 @@ module "network" {
   subnets = [
     {
       name           = "subnet1"
-      zone           = "ru-central1-a"
+      zone           = "ru-central1-d"
       v4_cidr_blocks = ["10.10.1.0/24"]
+    },
+    {
+      name           = "subnet2"
+      zone           = "ru-central1-e"
+      v4_cidr_blocks = ["10.10.2.0/24"]
     }
   ]
 }
@@ -45,3 +50,4 @@ output "vm_ip" {
 output "registry_id" {
   value = module.registry.registry_id
 }
+

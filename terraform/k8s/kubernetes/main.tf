@@ -14,11 +14,12 @@ resource "yandex_kubernetes_cluster" "this" {
   service_account_id       = var.master_sa_id
   node_service_account_id  = var.node_sa_id
   release_channel          = "REGULAR"
+
   master {
     version   = "1.35"
     public_ip = true
     zonal {
-      zone      = "ru-central1-a"
+      zone      = "ru-central1-d"
       subnet_id = var.subnet_id
     }
     maintenance_policy {
@@ -44,17 +45,18 @@ resource "yandex_kubernetes_node_group" "this" {
 
     network_interface {
       nat        = true
-      subnet_ids = [var.subnet_id]
+      subnet_ids = [var.node_subnet_id]
     }
 
     resources {
-      memory = 4
-      cores  = 2
+      memory        = 2
+      cores         = 2
+      core_fraction = 100
     }
 
     boot_disk {
       type = "network-hdd"
-      size = 64
+      size = 20
     }
 
     container_runtime {
@@ -70,7 +72,7 @@ resource "yandex_kubernetes_node_group" "this" {
 
   allocation_policy {
     location {
-      zone = "ru-central1-a"
+      zone = "ru-central1-e"
     }
   }
 
@@ -78,4 +80,3 @@ resource "yandex_kubernetes_node_group" "this" {
     enabled = false
   }
 }
-

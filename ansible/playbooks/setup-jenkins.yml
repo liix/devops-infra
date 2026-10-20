@@ -39,6 +39,14 @@
         state: present
         update_cache: true
 
+    - name: Ensure Jenkins secrets dir
+      file:
+        path: /var/lib/jenkins/secrets
+        state: directory
+        owner: jenkins
+        group: jenkins
+        mode: "0700"
+
     - name: Add Registry key for docker login
       copy:
         dest: /var/lib/jenkins/secrets/yc-cr.json
@@ -231,6 +239,104 @@
         name:
           - curl
         state: present
+
+    - name: Download yc archive
+      get_url:
+        url: https://storage.yandexcloud.net/yandexcloud-yc/release/yc_linux_amd64.tar.gz
+        dest: /tmp/yc_linux_amd64.tar.gz
+        mode: "0644"
+
+    - name: Unpack yc
+      unarchive:
+        src: /tmp/yc_linux_amd64.tar.gz
+        dest: /tmp
+        remote_src: true
+
+    - name: Install yc to /usr/local/bin
+      copy:
+        src: /tmp/yc
+        dest: /usr/local/bin/yc
+        remote_src: true
+        mode: "0755"
+        owner: root
+        group: root
+
+    - name: yc config dir for jenkins
+      file:
+        path: /var/lib/jenkins/.config/yandex-cloud
+        state: directory
+        owner: jenkins
+        group: jenkins
+        mode: "0700"
+
+    - name: yc uses SA key
+      become_user: jenkins
+      command: yc config set service-account-key /var/lib/jenkins/secrets/yc-cr.json
+      environment:
+        HOME: /var/lib/jenkins
+
+    - name: yc cloud id
+      become_user: jenkins
+      command: yc config set cloud-id {{ yc_cloud_id }}
+      environment:
+        HOME: /var/lib/jenkins
+
+    - name: yc folder id
+      become_user: jenkins
+      command: yc config set folder-id {{ yc_folder_id }}
+      environment:
+        HOME: /var/lib/jenkins
+
+    - name: Download helm
+      get_url:
+        url: https://get.helm.sh/helm-v4.3.0-linux-amd64.tar.gz
+        dest: /tmp/helm-v4.3.0-linux-amd64.tar.gz
+        mode: "0644"
+
+    - name: Unpack helm
+      unarchive:
+        src: /tmp/helm-v4.3.0-linux-amd64.tar.gz
+        dest: /tmp
+        remote_src: true
+
+    - name: Install helm to /usr/local/bin
+      copy:
+        src: /tmp/linux-amd64/helm
+        dest: /usr/local/bin/helm
+        remote_src: true
+        mode: "0755"
+        owner: root
+        group: root
+
+    - name: Ensure kube config dir
+      file:
+        path: /var/lib/jenkins/.kube
+        state: directory
+        owner: jenkins
+        group: jenkins
+        mode: "0700"
+
+    - name: Copy kubeconfig for Jenkins
+      copy:
+        src: "{{ kubeconfig_src }}"
+        dest: /var/lib/jenkins/.kube/config
+        owner: jenkins
+        group: jenkins
+        mode: "0600"
+
+    - name: Kubeconfig exec uses system yc
+      replace:
+        path: /var/lib/jenkins/.kube/config
+        regexp: "command:.*yc.*"
+        replace: "command: /usr/local/bin/yc"
+
+    - name: Download kubectl
+      get_url:
+        url: https://dl.k8s.io/release/v1.35.0/bin/linux/amd64/kubectl
+        dest: /usr/local/bin/kubectl
+        mode: "0755"
+        owner: root
+        group: root
 
     - name: Restart Jenkins
       service:
