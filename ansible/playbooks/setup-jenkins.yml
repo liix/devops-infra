@@ -57,6 +57,24 @@
         content: "{{ yc_cr_key_json }}"
       no_log: true
 
+    - name: Telegram bot token
+      copy:
+        dest: /var/lib/jenkins/secrets/telegram-bot-token
+        owner: jenkins
+        group: jenkins
+        mode: "0600"
+        content: "{{ telegram_bot_token }}"
+      no_log: true
+
+    - name: Telegram chat id
+      copy:
+        dest: /var/lib/jenkins/secrets/telegram-chat-id
+        owner: jenkins
+        group: jenkins
+        mode: "0600"
+        content: "{{ telegram_chat_id }}"
+      no_log: true
+
     - name: Registry id for pipeline
       copy:
         dest: /var/lib/jenkins/secrets/yc-registry-id
