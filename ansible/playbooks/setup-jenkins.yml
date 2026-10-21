@@ -136,6 +136,15 @@
       args:
         creates: /var/lib/jenkins/plugins/git.jpi
 
+    - name: Install Jenkins GitHub plugin
+      command: >
+        java -jar /tmp/jenkins-plugin-manager.jar
+        --war /usr/share/java/jenkins.war
+        --plugin-download-directory /var/lib/jenkins/plugins
+        --plugins github
+      args:
+        creates: /var/lib/jenkins/plugins/github.jpi
+
     - name: Fix plugins ownership
       file:
         path: /var/lib/jenkins/plugins
