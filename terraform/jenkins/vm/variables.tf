@@ -14,6 +14,10 @@ variable "ssh_public_key" {
   type = string
 }
 
+variable "memory" {
+  type = number
+}
+
 variable "instance_name" {
   type = string
 }

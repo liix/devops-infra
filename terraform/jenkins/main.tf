@@ -36,6 +36,7 @@ module "vm" {
   instance_name       = "vm"
   security_group_name = "security-group"
   disk_name           = "disk-ubuntu-24-04-lts"
+  memory              = 2
   network_id          = module.network.network_id
   subnet_id           = module.network.subnet_ids[0]
   subnet_zone         = module.network.subnet_zones[0]
@@ -53,14 +54,15 @@ module "vm" {
 }
 
 module "k3s_vm" {
-  source              = "./vm"
-  instance_name       = "k3s"
-  security_group_name = "k3s-security-group"
-  disk_name           = "k3s-disk-ubuntu-24-04-lts"
-  network_id          = module.network.network_id
-  subnet_id           = module.network.subnet_ids[0]
-  subnet_zone         = module.network.subnet_zones[0]
-  ssh_public_key      = var.ssh_public_key
+  source                    = "./vm"
+  instance_name             = "k3s"
+  security_group_name       = "k3s-security-group"
+  disk_name                 = "k3s-disk-ubuntu-24-04-lts"
+  memory                    = 4
+  network_id                = module.network.network_id
+  subnet_id                 = module.network.subnet_ids[0]
+  subnet_zone               = module.network.subnet_zones[0]
+  ssh_public_key            = var.ssh_public_key
   ingress_rules = [
     {
       port           = 22

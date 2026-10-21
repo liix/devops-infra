@@ -51,7 +51,7 @@ resource "yandex_compute_instance" "this" {
   }
 
   resources {
-    memory        = 2
+    memory        = var.memory
     cores         = 2
     core_fraction = 20
     gpus          = 0
