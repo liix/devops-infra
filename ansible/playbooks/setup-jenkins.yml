@@ -57,24 +57,6 @@
         content: "{{ yc_cr_key_json }}"
       no_log: true
 
-    - name: Telegram bot token
-      copy:
-        dest: /var/lib/jenkins/secrets/telegram-bot-token
-        owner: jenkins
-        group: jenkins
-        mode: "0600"
-        content: "{{ telegram_bot_token }}"
-      no_log: true
-
-    - name: Telegram chat id
-      copy:
-        dest: /var/lib/jenkins/secrets/telegram-chat-id
-        owner: jenkins
-        group: jenkins
-        mode: "0600"
-        content: "{{ telegram_chat_id }}"
-      no_log: true
-
     - name: Registry id for pipeline
       copy:
         dest: /var/lib/jenkins/secrets/yc-registry-id
@@ -163,6 +145,15 @@
       args:
         creates: /var/lib/jenkins/plugins/github.jpi
 
+    - name: Install Jenkins Mailer plugin
+      command: >
+        java -jar /tmp/jenkins-plugin-manager.jar
+        --war /usr/share/java/jenkins.war
+        --plugin-download-directory /var/lib/jenkins/plugins
+        --plugins mailer
+      args:
+        creates: /var/lib/jenkins/plugins/mailer.jpi
+
     - name: Fix plugins ownership
       file:
         path: /var/lib/jenkins/plugins
@@ -201,6 +192,40 @@
           definition.setLightweight(true)
           job.setDefinition(definition)
           job.save()
+
+    - name: Configure Jenkins SMTP on startup
+      copy:
+        dest: /var/lib/jenkins/init.groovy.d/mail.groovy
+        owner: jenkins
+        group: jenkins
+        mode: "0600"
+        content: |
+          import hudson.slaves.EnvironmentVariablesNodeProperty
+          import hudson.tasks.Mailer
+          import hudson.util.Secret
+          import jenkins.model.Jenkins
+
+          def instance = Jenkins.getInstance()
+          def mailer = instance.getDescriptor(Mailer.class)
+          mailer.setSmtpHost("smtp.yandex.ru")
+          mailer.setSmtpPort("587")
+          mailer.setUseSsl(false)
+          mailer.setUseTls(true)
+          mailer.setCharset("UTF-8")
+          mailer.setReplyToAddress("{{ smtp_user }}")
+          mailer.setAuthentication(new hudson.tasks.SMTPAuthentication("{{ smtp_user }}", Secret.fromString("{{ smtp_password }}")))
+          mailer.save()
+
+          def props = instance.getGlobalNodeProperties()
+          def envProp = props.get(EnvironmentVariablesNodeProperty.class)
+          if (envProp == null) {
+              envProp = new EnvironmentVariablesNodeProperty()
+              props.add(envProp)
+          }
+          envProp.getEnvVars().put("MAIL_FROM", "{{ smtp_user }}")
+          envProp.getEnvVars().put("MAIL_TO", "{{ mail_to }}")
+          instance.save()
+      no_log: true
 
     - name: Start Jenkins
       service:
