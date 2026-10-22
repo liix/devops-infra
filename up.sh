@@ -9,6 +9,7 @@ terraform -chdir=./terraform/jenkins init -input=false
 terraform -chdir=./terraform/jenkins apply
 
 JENKINS_IP="$(terraform -chdir=./terraform/jenkins output -raw vm_ip)"
+JENKINS_INTERNAL_IP="$(terraform -chdir=./terraform/jenkins output -raw jenkins_vm_internal_ip)"
 REGISTRY_ID="$(terraform -chdir=./terraform/jenkins output -raw registry_id)"
 K3S_IP="$(terraform -chdir=./terraform/jenkins output -raw k3s_vm_ip)"
 K3S_INTERNAL_IP="$(terraform -chdir=./terraform/jenkins output -raw k3s_vm_internal_ip)"
@@ -39,5 +40,10 @@ ansible-playbook playbooks/setup-jenkins.yml \
     -e "kubeconfig_src=${KUBECONFIG_FILE}" \
     -e "yc_cloud_id=${YC_CLOUD_ID}" \
     -e "yc_folder_id=${YC_FOLDER_ID}"
+
+ansible-playbook playbooks/setup-elk.yml \
+    -e "jenkins_public_ip=${JENKINS_IP}" \
+    -e "k3s_public_ip=${K3S_IP}" \
+    -e "jenkins_internal_ip=${JENKINS_INTERNAL_IP}"
 
 cd ..

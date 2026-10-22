@@ -1,0 +1,66 @@
+---
+- name: Run Elasticsearch and Kibana
+  hosts: jenkins_servers
+  become: true
+  vars:
+    ansible_host: "{{ jenkins_public_ip }}"
+  tasks:
+    - name: Set vm.max_map_count for Elasticsearch
+      sysctl:
+        name: vm.max_map_count
+        value: "262144"
+        sysctl_file: /etc/sysctl.d/99-elasticsearch.conf
+        state: present
+        reload: true
+
+    - name: Create ELK directory
+      file:
+        path: /opt/elk
+        state: directory
+        mode: "0755"
+
+    - name: Copy Elasticsearch and Kibana compose file
+      copy:
+        src: "{{ playbook_dir }}/../../elk/docker-compose.yml"
+        dest: /opt/elk/docker-compose.yml
+        mode: "0644"
+
+    - name: Clear apt cache so Elastic images fit on the 10G disk
+      command: apt-get clean
+
+    - name: Pull Elasticsearch image
+      command: docker pull docker.elastic.co/elasticsearch/elasticsearch:9.5.5
+
+    - name: Pull Kibana image
+      command: docker pull docker.elastic.co/kibana/kibana:9.5.5
+
+    - name: Start Elasticsearch and Kibana
+      command: docker compose up -d
+      args:
+        chdir: /opt/elk
+
+- name: Install Filebeat
+  hosts: k3s_servers
+  become: true
+  vars:
+    ansible_host: "{{ k3s_public_ip }}"
+    elasticsearch_host: "{{ jenkins_internal_ip }}"
+  tasks:
+    - name: Render Filebeat manifest
+      template:
+        src: "{{ playbook_dir }}/../../k8s/logging/filebeat.yaml"
+        dest: /tmp/filebeat.yaml
+        mode: "0644"
+
+    - name: Apply Filebeat
+      command: k3s kubectl apply -f /tmp/filebeat.yaml
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: filebeat_apply
+      changed_when: "'created' in filebeat_apply.stdout or 'configured' in filebeat_apply.stdout"
+
+    - name: Wait for Filebeat
+      command: k3s kubectl rollout status daemonset/filebeat --namespace logging --timeout=10m
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      changed_when: false

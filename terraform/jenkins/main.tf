@@ -36,10 +36,12 @@ module "vm" {
   instance_name       = "vm"
   security_group_name = "security-group"
   disk_name           = "disk-ubuntu-24-04-lts"
-  memory              = 2
+  memory              = 8
+  disk_size           = 20
+  core_fraction       = 50
   network_id          = module.network.network_id
-  subnet_id           = module.network.subnet_ids[0]
-  subnet_zone         = module.network.subnet_zones[0]
+  subnet_id           = module.network.subnet_ids[1]
+  subnet_zone         = module.network.subnet_zones[1]
   ssh_public_key      = var.ssh_public_key
   ingress_rules = [
     {
@@ -49,6 +51,14 @@ module "vm" {
     {
       port           = 8080
       v4_cidr_blocks = ["0.0.0.0/0"]
+    },
+    {
+      port           = 5601
+      v4_cidr_blocks = ["0.0.0.0/0"]
+    },
+    {
+      port           = 9200
+      v4_cidr_blocks = ["10.10.1.0/24"]
     }
   ]
 }
@@ -74,7 +84,7 @@ module "k3s_vm" {
     },
     {
       port           = 6443
-      v4_cidr_blocks = ["10.10.1.0/24"]
+      v4_cidr_blocks = ["10.10.1.0/24", "10.10.2.0/24"]
     }
   ]
 }
@@ -89,6 +99,10 @@ output "vm_ip" {
 
 output "jenkins_vm_ip" {
   value = module.vm.vm_ip
+}
+
+output "jenkins_vm_internal_ip" {
+  value = module.vm.vm_internal_ip
 }
 
 output "k3s_vm_ip" {

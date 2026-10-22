@@ -18,6 +18,16 @@ variable "memory" {
   type = number
 }
 
+variable "disk_size" {
+  type    = number
+  default = 10
+}
+
+variable "core_fraction" {
+  type    = number
+  default = 20
+}
+
 variable "instance_name" {
   type = string
 }

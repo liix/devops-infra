@@ -36,7 +36,7 @@ resource "yandex_compute_instance" "this" {
     initialize_params {
       name       = var.disk_name
       type       = "network-hdd"
-      size       = 10
+      size       = var.disk_size
       block_size = 4096
       image_id   = "fd8s63gg3op17u27s4oa"
     }
@@ -53,7 +53,7 @@ resource "yandex_compute_instance" "this" {
   resources {
     memory        = var.memory
     cores         = 2
-    core_fraction = 20
+    core_fraction = var.core_fraction
     gpus          = 0
   }
 
